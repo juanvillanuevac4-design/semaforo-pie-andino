@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: semaforo-pie-andino
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -w 1 --threads 4 -b 0.0.0.0:$PORT app:app
+    healthCheckPath: /healthz
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: ZONA_HORARIA
+        value: America/Santiago
+      - key: TOLERANCIA_MIN
+        value: "0"
+      - key: PYTHON_VERSION
+        value: 3.12.7

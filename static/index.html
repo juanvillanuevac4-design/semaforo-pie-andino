@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Semáforo Pie Andino</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/static/base.css">
+<style>
+body{margin:0}
+.wrap{max-width:980px}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px 18px;justify-content:space-between;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line);font-size:.85rem}
+.toolbar .counts-inline{display:flex;gap:14px;flex-wrap:wrap}
+.toolbar .counts-inline span{display:flex;gap:6px;align-items:center}
+.toolbar a{color:var(--accent);font-weight:600;text-decoration:none}
+.toolbar a:hover{text-decoration:underline}
+.msg{padding:10px 18px;font-size:.88rem;color:var(--red);background:var(--red-bg)}
+.loading{padding:24px 18px;color:var(--muted)}
+.resp.err{outline:2px solid var(--red)}
+.tl-card>div{min-width:0;max-width:100%}
+@media (max-width:560px){
+  .tl-item,.now-line{grid-template-columns:46px 20px minmax(0,1fr);gap:0 8px}
+  .tl-time{font-size:.92rem}
+  .tl-card>.meta:last-child{width:100%;flex-wrap:nowrap}
+  .tl-card .resp{flex:1;min-width:0;width:100%}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="app">
+    <div class="apphead">
+      <div class="date"><b id="fecha">--</b><span id="dia">&nbsp;</span></div>
+      <h2>Semáforo Pie Andino</h2>
+      <div class="right"><span class="daytype" id="tipo">--</span><span class="mono" id="hora">--:--</span></div>
+    </div>
+    <div class="toolbar">
+      <div class="counts-inline" id="counts"></div>
+      <a href="/api/base.csv" id="csv">Descargar Base semáforo (CSV)</a>
+    </div>
+    <div class="msg" id="msg" hidden></div>
+    <div class="timeline" id="tl"><p class="loading">Cargando tareas del día…</p></div>
+  </section>
+</div>
+<script>
+let data=null, sel={};
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const toMin=s=>{const[a,b]=s.split(":");return +a*60+ +b};
+const cls=st=>st==="Ejecutada"?"ok":st==="Pendiente"?"pend":"no";
+function showMsg(t){const m=document.getElementById("msg");m.textContent=t||"";m.hidden=!t}
+
+async function cargar(){
+  try{
+    const r=await fetch("/api/hoy",{cache:"no-store"});
+    if(!r.ok)throw new Error();
+    data=await r.json();showMsg("");render();
+  }catch(e){showMsg("No se pudo conectar con el servidor. Se reintentará en 30 segundos.")}
+}
+function render(){
+  const [y,m,d]=data.fecha.split("-");
+  document.getElementById("fecha").textContent=`${d}-${m}-${y}`;
+  document.getElementById("dia").textContent=new Date(+y,+m-1,+d).toLocaleDateString("es-CL",{weekday:"long"});
+  document.getElementById("tipo").textContent=data.tipo_dia;
+  document.getElementById("hora").textContent=data.hora;
+  const k={ok:0,pend:0,no:0};data.tareas.forEach(t=>k[cls(t.estatus)]++);
+  document.getElementById("counts").innerHTML=
+    `<span><span class="pill s-ok"><i></i>${k.ok}</span> ejecutadas</span><span><span class="pill s-pend"><i></i>${k.pend}</span> pendientes</span><span><span class="pill s-no"><i></i>${k.no}</span> no realizadas</span>`;
+  const cur=toMin(data.hora);let out="",placed=false;
+  const nowLine=`<div class="now-line"><span>${data.hora}</span><div></div></div>`;
+  data.tareas.forEach(t=>{
+    const c=cls(t.estatus);
+    if(!placed&&toMin(t.hora)>cur){out+=nowLine;placed=true}
+    const ocls=t.observacion==="A tiempo"?"ontime":t.observacion?"late":"";
+    const v=t.responsable??sel[t.id]??"";
+    const select=`<select class="resp" id="resp-${t.id}" data-id="${t.id}" ${t.estatus==="Ejecutada"?"disabled":""} aria-label="Responsable"><option value="">Elegir responsable…</option>${data.responsables.map(n=>`<option ${n===v?"selected":""}>${esc(n)}</option>`).join("")}</select>`;
+    const btn=t.estatus==="Ejecutada"?`<button class="btn" disabled>Ejecutada ${t.ejecutada}</button>`:`<button class="btn" data-exec="${t.id}">Ejecutada</button>`;
+    out+=`<div class="tl-item"><div class="tl-time">${t.hora}</div><div class="tl-rail"><span class="tl-dot c-${c}-col"></span></div>
+      <div class="tl-card c-${c}"><div style="min-width:0"><div class="t">${esc(t.tarea)}</div><div class="meta"><span class="pill s-${c}"><i></i>${t.estatus}</span> <span class="obs ${ocls}">${esc(t.observacion||"—")}</span></div></div><div class="meta">${select} ${btn}</div></div></div>`;
+  });
+  if(!placed)out+=nowLine;
+  document.getElementById("tl").innerHTML=data.tareas.length?out:`<p class="loading">No hay tareas programadas para hoy.</p>`;
+}
+document.getElementById("tl").addEventListener("change",e=>{if(e.target.matches("select.resp")){sel[e.target.dataset.id]=e.target.value;e.target.classList.remove("err")}});
+document.getElementById("tl").addEventListener("click",async e=>{
+  const b=e.target.closest("[data-exec]");if(!b)return;
+  const id=b.dataset.exec, s=document.getElementById("resp-"+id);
+  if(!sel[id]){s.classList.add("err");s.focus();showMsg("Elige el responsable antes de marcar la tarea como ejecutada.");return}
+  b.disabled=true;
+  try{
+    const r=await fetch("/api/ejecutar/"+id,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({responsable:sel[id]})});
+    const j=await r.json();
+    if(!r.ok)showMsg(j.error||"No se pudo guardar.");else showMsg("");
+  }catch(err){showMsg("No se pudo guardar. Revisa la conexión e intenta de nuevo.")}
+  cargar();
+});
+cargar();setInterval(cargar,30000);
+</script>
+</body>
+</html>
