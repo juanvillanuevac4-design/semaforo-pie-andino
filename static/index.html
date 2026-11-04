@@ -52,10 +52,13 @@ function showMsg(t){const m=document.getElementById("msg");m.textContent=t||"";m
 
 async function cargar(){
   try{
-    const r=await fetch("/api/hoy",{cache:"no-store"});
-    if(!r.ok)throw new Error();
-    data=await r.json();showMsg("");render();
-  }catch(e){showMsg("No se pudo conectar con el servidor. Se reintentará en 30 segundos.")}
+    const ctl=new AbortController(), to=setTimeout(()=>ctl.abort(),45000);
+    const r=await fetch("/api/hoy",{cache:"no-store",signal:ctl.signal});
+    clearTimeout(to);
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(j.error||("HTTP "+r.status));
+    data=j;showMsg("");render();
+  }catch(e){showMsg("No se pudieron cargar las tareas ("+(e.name==="AbortError"?"el servidor no respondió":e.message)+"). Se reintentará en 30 segundos.")}
 }
 function render(){
   const [y,m,d]=data.fecha.split("-");

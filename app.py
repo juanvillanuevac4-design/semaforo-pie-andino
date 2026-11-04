@@ -2,8 +2,7 @@
 import csv
 import io
 import os
-import threading
-import time
+import logging
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -77,11 +76,14 @@ CREATE INDEX IF NOT EXISTS base_semaforo_fecha ON base_semaforo (fecha);
 """
 
 app = Flask(__name__, static_folder="static")
-_lock = threading.Lock()
+logging.basicConfig(level=logging.INFO)
 
 
 def conectar():
-    return psycopg.connect(DATABASE_URL, row_factory=dict_row, autocommit=False)
+    return psycopg.connect(
+        DATABASE_URL, row_factory=dict_row, autocommit=False,
+        connect_timeout=15, keepalives=1, keepalives_idle=30, keepalives_interval=10, keepalives_count=3,
+    )
 
 
 def ahora():
@@ -160,7 +162,7 @@ def index():
 @app.get("/api/hoy")
 def api_hoy():
     n = ahora()
-    with _lock, conectar() as cx:
+    with conectar() as cx:
         sincronizar(cx)
         filas = cx.execute(
             "SELECT * FROM base_semaforo WHERE fecha = %s ORDER BY hora, tarea", (n.date(),)
@@ -183,7 +185,7 @@ def api_ejecutar(reg_id):
     datos = request.get_json(silent=True) or {}
     responsable = (datos.get("responsable") or "").strip()
     n = ahora()
-    with _lock, conectar() as cx:
+    with conectar() as cx:
         if not cx.execute(
             "SELECT 1 FROM responsables WHERE nombre = %s AND activo", (responsable,)
         ).fetchone():
@@ -211,7 +213,7 @@ def api_csv():
     """Descarga la Base semáforo completa (o un rango ?desde=AAAA-MM-DD&hasta=AAAA-MM-DD)."""
     desde = request.args.get("desde") or "1900-01-01"
     hasta = request.args.get("hasta") or "2999-12-31"
-    with _lock, conectar() as cx:
+    with conectar() as cx:
         sincronizar(cx)
         filas = cx.execute(
             "SELECT * FROM base_semaforo WHERE fecha BETWEEN %s AND %s ORDER BY fecha, hora, tarea",
@@ -228,24 +230,18 @@ def api_csv():
                     headers={"Content-Disposition": "attachment; filename=base_semaforo.csv"})
 
 
+@app.errorhandler(Exception)
+def error(e):
+    app.logger.exception("Error en %s", request.path)
+    return jsonify(error="Error del servidor: " + type(e).__name__), 500
+
+
 @app.get("/healthz")
 def healthz():
     return "ok"
 
 
-def _vigilante():
-    """Marca las tareas vencidas cada minuto aunque nadie tenga la página abierta."""
-    while True:
-        try:
-            with _lock, conectar() as cx:
-                sincronizar(cx)
-        except Exception as e:  # noqa: BLE001
-            app.logger.warning("sincronizar falló: %s", e)
-        time.sleep(60)
-
-
 iniciar_bd()
-threading.Thread(target=_vigilante, daemon=True).start()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")))
