@@ -6,6 +6,14 @@ Semáforo diario de tareas por hora y tipo de día (Hábil, Sábado, Domingo), b
 - **Amarillo / Pendiente:** aún no llega la hora programada.
 - **Rojo / No Realizada:** pasó la hora sin ejecutarse. Queda guardada con observación "Sin ejecutar".
 
+Tipo de día: lunes a viernes Hábil, sábado Sábado, domingo Domingo. Los feriados de Chile (librería `holidays`) usan las tareas de Domingo. No hay minutos de tolerancia.
+
+## Usuarios
+
+- Se ingresa con usuario y contraseña. Roles: **Operador** (marca tareas) y **Administrador** (además deshace o corrige tareas marcadas, revisa días anteriores, administra usuarios, la lista de responsables y el contacto en `/admin`).
+- Cada corrección queda en la tabla `historial_cambios`; `base_semaforo` guarda quién marcó (`registrado_por`) y quién corrigió (`modificado_por`).
+- El primer administrador se crea al arrancar con `ADMIN_USUARIO` / `ADMIN_CLAVE` si no existe ninguno.
+
 Cada tarea del día tiene una fila en la tabla `base_semaforo` (columnas de la hoja "Base de Datos": Fecha, Hora, Tipo dia, Tarea, Responsable, Estatus, Ejecutada, Observacion). Las filas se crean al empezar el día y se actualizan solas; si el servicio estuvo dormido, al despertar completa los días que faltan (hasta 31 días atrás).
 
 ## Configuración
@@ -15,13 +23,17 @@ Cada tarea del día tiene una fila en la tabla `base_semaforo` (columnas de la h
 | `DATABASE_URL` | Conexión Postgres (Neon, Render, etc.) | — |
 | `ZONA_HORARIA` | Zona horaria de las horas programadas | `America/Santiago` |
 | `TOLERANCIA_MIN` | Minutos de gracia antes de marcar Atrasada / No Realizada | `0` |
+| `SECRET_KEY` | Firma de la sesión (obligatoria en producción) | aleatoria |
+| `ADMIN_USUARIO` / `ADMIN_CLAVE` | Administrador inicial | `admin` / — |
 
 Las tareas y responsables se cargan desde las tablas `parametro_tareas` y `responsables` (sembradas con los datos del Excel al primer arranque).
 
 ## Rutas
 
 - `/` interfaz (línea de tiempo)
-- `GET /api/hoy` tareas del día
+- `/login`, `/admin`
+- `GET /api/dia?fecha=AAAA-MM-DD` tareas del día
+- `POST /api/deshacer/<id>`, `POST /api/editar/<id>` (administrador)
 - `POST /api/ejecutar/<id>` con `{"responsable": "..."}`
 - `GET /api/base.csv?desde=AAAA-MM-DD&hasta=AAAA-MM-DD` descarga de la Base semáforo
 

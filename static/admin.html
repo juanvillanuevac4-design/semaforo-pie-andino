@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Administración · Semáforo Pie Andino</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/static/base.css">
+<style>
+body{margin:0}
+.wrap{max-width:980px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.top h1{font-size:1.35rem;font-weight:800}
+.top a{color:var(--accent);font-weight:600;text-decoration:none}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.card h2{font-size:1rem;padding:12px 16px;border-bottom:1px solid var(--line)}
+.card .body{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.form{display:flex;flex-wrap:wrap;gap:8px;align-items:end}
+.form label{display:flex;flex-direction:column;gap:3px;font-size:.78rem;color:var(--muted);font-weight:600}
+input,select,textarea{font:500 .88rem var(--f-display);color:var(--fg);background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:7px 8px}
+textarea{width:100%;min-height:80px;resize:vertical}
+td{font-size:.88rem}
+.btn.sec{background:var(--surface2);color:var(--fg);border:1px solid var(--line)}
+.ok{color:var(--green);font-size:.85rem;min-height:1.1em;margin:0}
+.msg{padding:10px 16px;font-size:.88rem;color:var(--red);background:var(--red-bg);border-radius:8px}
+.off{opacity:.55}
+.tablewrap table{min-width:640px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><h1>Administración</h1><a href="/">Volver al semáforo</a></div>
+  <div class="msg" id="msg" hidden></div>
+
+  <section class="card">
+    <h2>Usuarios</h2>
+    <div class="body">
+      <form class="form" id="fUsuario">
+        <label for="nNombre">Nombre<input id="nNombre" required></label>
+        <label for="nUsuario">Usuario<input id="nUsuario" required autocomplete="off"></label>
+        <label for="nClave">Contraseña inicial<input id="nClave" type="text" minlength="8" required autocomplete="off"></label>
+        <label for="nRol">Rol<select id="nRol"><option value="operador">Operador</option><option value="admin">Administrador</option></select></label>
+        <button class="btn" type="submit">Crear usuario</button>
+      </form>
+      <p class="ok" id="okUsuario"></p>
+    </div>
+    <div class="tablewrap"><table><thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Estado</th><th>Contraseña</th></tr></thead><tbody id="tUsuarios"></tbody></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Lista de responsables</h2>
+    <div class="body">
+      <form class="form" id="fResp"><label for="rNombre">Nombre<input id="rNombre" required></label><button class="btn" type="submit">Agregar</button></form>
+    </div>
+    <div class="tablewrap"><table><thead><tr><th>Nombre</th><th>Estado</th><th></th></tr></thead><tbody id="tResp"></tbody></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Contacto</h2>
+    <div class="body">
+      <label for="contacto" class="note">Texto que aparece en la sección "Contacto" de la página principal (nombre, teléfono, correo).</label>
+      <textarea id="contacto" maxlength="500"></textarea>
+      <div><button class="btn" id="btnContacto" type="button">Guardar contacto</button></div>
+      <p class="ok" id="okContacto"></p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Historial de correcciones</h2>
+    <div class="tablewrap"><table><thead><tr><th>Cuándo</th><th>Quién</th><th>Acción</th><th>Tarea</th><th>Antes</th><th>Después</th></tr></thead><tbody id="tHist"></tbody></table></div>
+  </section>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function showMsg(t){$("msg").textContent=t||"";$("msg").hidden=!t}
+async function api(url,body){
+  const r=await fetch(url,body?{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}:{cache:"no-store"});
+  if(r.status===401){location.href="/login";throw new Error("sesión terminada")}
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(j.error||("HTTP "+r.status));
+  return j;
+}
+async function cargar(){
+  try{
+    const d=await api("/api/admin/datos");showMsg("");
+    $("tUsuarios").innerHTML=d.usuarios.map(u=>`<tr class="${u.activo?"":"off"}"><td>${esc(u.nombre)}${u.id===d.yo.id?" (tú)":""}</td><td class="mono">${esc(u.usuario)}</td>
+      <td><select data-rol="${u.id}" aria-label="Rol"><option value="operador" ${u.rol==="operador"?"selected":""}>Operador</option><option value="admin" ${u.rol==="admin"?"selected":""}>Administrador</option></select></td>
+      <td><button class="btn sec" data-activo="${u.id}" data-v="${u.activo?0:1}">${u.activo?"Desactivar":"Activar"}</button></td>
+      <td><button class="btn sec" data-clave="${u.id}">Nueva contraseña</button></td></tr>`).join("");
+    $("tResp").innerHTML=d.responsables.map(r=>`<tr class="${r.activo?"":"off"}"><td>${esc(r.nombre)}</td><td>${r.activo?"En la lista":"Oculto"}</td><td><button class="btn sec" data-resp="${r.id}" data-v="${r.activo?0:1}">${r.activo?"Quitar de la lista":"Volver a mostrar"}</button></td></tr>`).join("");
+    if(document.activeElement!==$("contacto"))$("contacto").value=d.contacto;
+    $("tHist").innerHTML=d.historial.length?d.historial.map(h=>`<tr><td class="mono">${h.cuando}</td><td>${esc(h.usuario)}</td><td>${h.accion==="deshacer"?"Deshacer":"Editar"}</td><td>${esc(h.tarea)}</td><td>${esc(h.antes)}</td><td>${esc(h.despues)}</td></tr>`).join(""):`<tr><td colspan="6" class="note">Aún no hay correcciones.</td></tr>`;
+  }catch(e){showMsg(e.message)}
+}
+$("fUsuario").addEventListener("submit",async e=>{
+  e.preventDefault();
+  try{await api("/api/admin/usuarios",{nombre:$("nNombre").value,usuario:$("nUsuario").value,clave:$("nClave").value,rol:$("nRol").value});
+    $("okUsuario").textContent=`Usuario "${$("nUsuario").value}" creado. Entrégale su contraseña inicial; puede cambiarla desde la página principal.`;e.target.reset();cargar()}
+  catch(err){showMsg(err.message)}
+});
+$("tUsuarios").addEventListener("change",async e=>{
+  if(!e.target.dataset.rol)return;
+  try{await api("/api/admin/usuarios/"+e.target.dataset.rol,{rol:e.target.value})}catch(err){showMsg(err.message)}cargar();
+});
+$("tUsuarios").addEventListener("click",async e=>{
+  const b=e.target.closest("button");if(!b)return;
+  try{
+    if(b.dataset.activo)await api("/api/admin/usuarios/"+b.dataset.activo,{activo:b.dataset.v==="1"});
+    if(b.dataset.clave){
+      const td=b.parentElement;
+      td.innerHTML=`<span class="form"><input type="text" minlength="8" placeholder="Mínimo 8 caracteres" id="nc-${b.dataset.clave}" aria-label="Nueva contraseña"><button class="btn" data-guardaclave="${b.dataset.clave}">Guardar</button></span>`;
+      $("nc-"+b.dataset.clave).focus();return;
+    }
+    if(b.dataset.guardaclave){await api("/api/admin/usuarios/"+b.dataset.guardaclave,{clave:$("nc-"+b.dataset.guardaclave).value});$("okUsuario").textContent="Contraseña actualizada."}
+    showMsg("");
+  }catch(err){showMsg(err.message)}
+  cargar();
+});
+$("fResp").addEventListener("submit",async e=>{e.preventDefault();try{await api("/api/admin/responsables",{nombre:$("rNombre").value});e.target.reset();showMsg("")}catch(err){showMsg(err.message)}cargar()});
+$("tResp").addEventListener("click",async e=>{const b=e.target.closest("button[data-resp]");if(!b)return;try{await api("/api/admin/responsables",{id:+b.dataset.resp,activo:b.dataset.v==="1"})}catch(err){showMsg(err.message)}cargar()});
+$("btnContacto").addEventListener("click",async()=>{try{await api("/api/admin/contacto",{contacto:$("contacto").value});$("okContacto").textContent="Contacto guardado.";showMsg("")}catch(err){showMsg(err.message)}});
+cargar();
+</script>
+</body>
+</html>

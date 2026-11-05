@@ -13,5 +13,11 @@ services:
         value: America/Santiago
       - key: TOLERANCIA_MIN
         value: "0"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_USUARIO
+        value: admin
+      - key: ADMIN_CLAVE
+        sync: false
       - key: PYTHON_VERSION
         value: 3.12.7

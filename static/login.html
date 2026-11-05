@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ingresar · Semáforo Pie Andino</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/static/base.css">
+<style>
+body{margin:0}
+.box{max-width:380px;margin:12vh auto 0;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:24px;display:flex;flex-direction:column;gap:14px}
+.lights{display:flex;gap:6px}
+.lights span{width:14px;height:14px;border-radius:50%}
+h1{font-size:1.35rem;font-weight:800;margin:0}
+label{display:flex;flex-direction:column;gap:4px;font-size:.85rem;color:var(--muted);font-weight:600}
+input{font:500 1rem var(--f-display);color:var(--fg);background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.btn{padding:11px 14px;font-size:.95rem}
+.err{color:var(--red);font-size:.88rem;min-height:1.2em;margin:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <form class="box" id="f">
+    <div class="lights" aria-hidden="true"><span style="background:var(--red)"></span><span style="background:var(--yellow)"></span><span style="background:var(--green)"></span></div>
+    <h1>Semáforo Pie Andino</h1>
+    <label for="usuario">Usuario<input id="usuario" autocomplete="username" required autofocus></label>
+    <label for="clave">Contraseña<input id="clave" type="password" autocomplete="current-password" required></label>
+    <p class="err" id="err"></p>
+    <button class="btn" type="submit">Ingresar</button>
+  </form>
+</div>
+<script>
+document.getElementById("f").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const err=document.getElementById("err");err.textContent="";
+  try{
+    const r=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({usuario:usuario.value,clave:clave.value})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok){err.textContent=j.error||"No se pudo ingresar.";return}
+    location.href="/";
+  }catch(x){err.textContent="No se pudo conectar con el servidor. Intenta de nuevo."}
+});
+</script>
+</body>
+</html>
