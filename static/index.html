@@ -53,6 +53,7 @@ dialog .row{display:flex;gap:8px;justify-content:flex-end}
   <div class="userbar">
     <span id="yo">&nbsp;</span>
     <span class="links">
+      <a class="linkbtn" href="/dashboard">Dashboards</a>
       <a class="linkbtn" href="/admin" id="lnkAdmin" hidden>Administración</a>
       <button class="linkbtn" type="button" id="btnClave">Cambiar contraseña</button>
       <button class="linkbtn" type="button" id="btnSalir">Salir</button>
@@ -82,7 +83,7 @@ dialog .row{display:flex;gap:8px;justify-content:flex-end}
       <h3>Limitaciones actuales</h3>
       <ul>
         <li>Sin tolerancia: una tarea marcada después de su hora programada queda como Atrasada, aunque sea por un minuto.</li>
-        <li>No hay campo para comentarios libres; la observación (A tiempo, Atrasada, Sin ejecutar) es automática.</li>
+        <li>La observación (A tiempo, Atrasada, Sin ejecutar) es automática. Solo un administrador puede dejar un comentario, en las tareas no ejecutadas.</li>
         <li>Solo un administrador puede deshacer o editar una tarea ya marcada. Cada cambio queda registrado.</li>
         <li>Los feriados de Chile usan las tareas de Domingo, según el calendario oficial.</li>
         <li>En el plan gratuito, la primera visita después de 15 minutos sin uso tarda cerca de un minuto en cargar.</li>
@@ -170,8 +171,10 @@ function render(){
       acciones=`<button class="btn sec" data-editar="${t.id}">Marcar con hora</button>`;
     }
     const who=[t.registrado_por&&`Marcó: ${esc(t.registrado_por)}`,t.modificado_por&&`Corrigió: ${esc(t.modificado_por)}`].filter(Boolean).join(" · ");
+    const extra=[t.estatus==="No Realizada"&&t.responsable&&`Responsable asignado: ${esc(t.responsable)}`,t.comentario&&`Comentario: ${esc(t.comentario)}`].filter(Boolean).join(" · ");
+    if(admin&&t.estatus==="No Realizada")acciones+=`<a class="linkbtn" href="/admin#no-ejecutadas">Asignar responsable</a>`;
     out+=`<div class="tl-item"><div class="tl-time">${t.hora}</div><div class="tl-rail"><span class="tl-dot c-${c}-col"></span></div>
-      <div class="tl-card c-${c}"><div style="min-width:0"><div class="t">${esc(t.tarea)}</div><div class="meta"><span class="pill s-${c}"><i></i>${t.estatus}</span> <span class="obs ${ocls}">${esc(t.observacion||"—")}</span></div>${who?`<div class="who">${who}</div>`:""}</div><div class="meta">${acciones}</div></div></div>`;
+      <div class="tl-card c-${c}"><div style="min-width:0"><div class="t">${esc(t.tarea)}</div><div class="meta"><span class="pill s-${c}"><i></i>${t.estatus}</span> <span class="obs ${ocls}">${esc(t.observacion||"—")}</span></div>${who?`<div class="who">${who}</div>`:""}${extra?`<div class="who">${extra}</div>`:""}</div><div class="meta">${acciones}</div></div></div>`;
   });
   if(!placed)out+=nowLine;
   $("tl").innerHTML=data.tareas.length?out:`<p class="loading">No hay tareas programadas para este día.</p>`;

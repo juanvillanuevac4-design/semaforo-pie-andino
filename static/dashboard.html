@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Dashboards · Semáforo Pie Andino</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/static/base.css">
+<style>
+body{margin:0}
+:root{--late:#b86a00;--late-bg:#fde7c8;--none:#9aa5a0}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--late:#f4a23c;--late-bg:#43301a;--none:#56625d}}
+:root[data-theme="dark"]{--late:#f4a23c;--late-bg:#43301a;--none:#56625d}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.top h1{font-size:1.35rem;font-weight:800}
+.top a{color:var(--accent);font-weight:600;text-decoration:none}
+.controls select,.controls input{font:500 .85rem var(--f-mono);color:var(--fg);background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:5px 6px}
+.controls label{display:flex;gap:6px;align-items:center;font-size:.85rem;color:var(--muted)}
+.range{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-left:auto}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.card h2{font-size:1rem;padding:12px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline}
+.card h2 small{font:500 .8rem var(--f-display);color:var(--muted)}
+.card .body{padding:14px 16px}
+.msg{padding:10px 16px;font-size:.88rem;color:var(--red);background:var(--red-bg);border-radius:8px}
+.propuesta{display:flex;flex-direction:column;gap:16px}
+.propuesta>.note{max-width:80ch}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:2px}
+.kpi .lbl{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+.kpi .val{font:700 2rem var(--f-mono);line-height:1.15}
+.kpi .sub{font-size:.82rem;color:var(--muted)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.82rem;color:var(--muted)}
+.legend span{display:flex;gap:6px;align-items:center}
+.sw{width:11px;height:11px;border-radius:3px;display:inline-block;flex:none}
+.k-ok{background:var(--green)} .k-late{background:var(--late)} .k-no{background:var(--red)} .k-pend{background:var(--none)}
+/* Barras por día */
+.days{display:flex;align-items:flex-end;gap:2px;height:200px;padding-top:8px;border-bottom:1px solid var(--line);position:relative}
+.day{flex:1;min-width:3px;height:100%;display:flex;flex-direction:column-reverse;gap:2px;cursor:default;position:relative}
+.day i{display:block;width:100%}
+.day i:last-child{border-radius:4px 4px 0 0}
+.day:hover{filter:brightness(1.08)}
+.axis{display:flex;justify-content:space-between;font:500 .72rem var(--f-mono);color:var(--muted);margin-top:4px}
+.tip{position:fixed;z-index:10;pointer-events:none;background:var(--fg);color:var(--bg);font-size:.78rem;padding:7px 9px;border-radius:7px;max-width:260px;line-height:1.35;display:none}
+/* Barra horizontal apilada */
+.hbar{display:flex;height:14px;gap:2px;background:var(--surface2);border-radius:4px;overflow:hidden;min-width:120px}
+.hbar i{display:block;height:100%}
+td.num{font-family:var(--f-mono);text-align:right;white-space:nowrap}
+th.num{text-align:right}
+.tablewrap table{min-width:640px}
+/* Mapa de calor */
+.heat{border-collapse:separate;border-spacing:2px;min-width:0;width:auto}
+.heat th{padding:4px 6px;font-size:.66rem;background:none;border:0;text-align:center;vertical-align:bottom;max-width:84px;line-height:1.2;letter-spacing:.04em}
+.heat th.rowh{text-align:right;font:500 .75rem var(--f-mono);text-transform:none;letter-spacing:0;white-space:nowrap;vertical-align:middle}
+.heat td{padding:0;border:0;width:34px;height:24px;border-radius:4px;text-align:center;font:700 .72rem var(--f-mono);color:#fff}
+.heat td.c-ok{background:var(--green)} .heat td.c-late{background:var(--late)} .heat td.c-no{background:var(--red)} .heat td.c-pend{background:var(--none)} .heat td.c-x{background:transparent;color:var(--muted);font-weight:400}
+.heat tr.wk th.rowh{color:var(--accent)}
+.heat tfoot td{background:none;color:var(--fg);font-weight:600;font-size:.68rem}
+.heatwrap{overflow:auto;max-height:70vh;padding:12px 16px}
+.split{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+.rank{display:flex;flex-direction:column;gap:10px}
+.rank .row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:center;font-size:.88rem}
+.rank .row .hbar{grid-column:1/-1}
+.rank .row b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty{padding:14px 16px;color:var(--muted);font-size:.88rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><h1>Dashboards</h1><a href="/">Volver al semáforo</a></div>
+  <div class="controls">
+    <div class="tabs" role="tablist" aria-label="Propuestas de dashboard">
+      <button role="tab" aria-selected="true" data-tab="A">A · Resumen ejecutivo</button>
+      <button role="tab" aria-selected="false" data-tab="B">B · Mapa de calor</button>
+      <button role="tab" aria-selected="false" data-tab="C">C · Por responsable</button>
+    </div>
+    <div class="range">
+      <label for="periodo">Período <select id="periodo"><option value="7">Últimos 7 días</option><option value="30" selected>Últimos 30 días</option><option value="90">Últimos 90 días</option><option value="mes">Mes en curso</option><option value="custom">Personalizado</option></select></label>
+      <label for="desde" class="cust" hidden>Desde <input type="date" id="desde"></label>
+      <label for="hasta" class="cust" hidden>Hasta <input type="date" id="hasta"></label>
+      <label for="tarea">Tarea <select id="tarea"><option value="">Todas</option></select></label>
+    </div>
+  </div>
+  <div class="msg" id="msg" hidden></div>
+  <div id="out"><p class="note">Cargando datos…</p></div>
+</div>
+<div class="tip" id="tip" role="tooltip"></div>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt=f=>{const[y,m,d]=f.split("-");return `${d}-${m}-${y}`};
+const fmtC=f=>{const[,m,d]=f.split("-");return `${d}/${m}`};
+const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const pct=(a,b)=>b?Math.round(a*100/b)+"%":"—";
+const LBL={ok:"A tiempo",late:"Atrasada",no:"No realizada",pend:"Pendiente"};
+const ICON={ok:"✓",late:"!",no:"✗",pend:"·"};
+let tab="A",datos=null;
+try{tab=localStorage.getItem("dash-tab")||"A"}catch(e){}
+
+function cat(r){if(r.estatus==="Pendiente")return"pend";if(r.estatus==="No Realizada")return"no";return r.observacion==="Atrasada"?"late":"ok"}
+function contar(rs){const k={ok:0,late:0,no:0,pend:0,n:rs.length};rs.forEach(r=>k[cat(r)]++);k.vencidas=k.n-k.pend;k.ej=k.ok+k.late;return k}
+function hbar(k){const t=k.n||1;return `<div class="hbar" role="img" aria-label="${k.ok} a tiempo, ${k.late} atrasadas, ${k.no} no realizadas, ${k.pend} pendientes">${["ok","late","no","pend"].filter(c=>k[c]).map(c=>`<i class="k-${c}" style="width:${k[c]*100/t}%"></i>`).join("")}</div>`}
+const legend=(c=["ok","late","no","pend"])=>`<div class="legend">${c.map(x=>`<span><i class="sw k-${x}"></i>${LBL[x]}</span>`).join("")}</div>`;
+function agrupar(rs,key){const m=new Map();rs.forEach(r=>{const k=key(r);if(!m.has(k))m.set(k,[]);m.get(k).push(r)});return m}
+function dias(desde,hasta){const out=[];const d=new Date(desde+"T12:00");const h=new Date(hasta+"T12:00");while(d<=h){out.push(iso(d));d.setDate(d.getDate()+1)}return out}
+
+async function api(url){
+  const r=await fetch(url,{cache:"no-store"});
+  if(r.status===401){location.href="/login";throw new Error("sesión terminada")}
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(j.error||("HTTP "+r.status));return j;
+}
+function rango(){
+  const p=$("periodo").value,h=new Date();
+  if(p==="custom")return{desde:$("desde").value,hasta:$("hasta").value};
+  const d=new Date(h);if(p==="mes")d.setDate(1);else d.setDate(d.getDate()-(+p-1));
+  return{desde:iso(d),hasta:iso(h)};
+}
+async function cargar(){
+  try{
+    const {desde,hasta}=rango();const q=new URLSearchParams();if(desde)q.set("desde",desde);if(hasta)q.set("hasta",hasta);
+    datos=await api("/api/dashboard?"+q);$("msg").hidden=true;
+    if($("periodo").value!=="custom"){$("desde").value=datos.desde;$("hasta").value=datos.hasta}$("hasta").max=datos.hoy;
+    const tareas=[...new Set(datos.registros.map(r=>r.tarea))].sort(),cur=$("tarea").value;
+    $("tarea").innerHTML=`<option value="">Todas</option>`+tareas.map(t=>`<option ${t===cur?"selected":""}>${esc(t)}</option>`).join("");
+    render();
+  }catch(e){$("msg").textContent="No se pudieron cargar los datos ("+e.message+").";$("msg").hidden=false}
+}
+function filas(){const t=$("tarea").value;return datos.registros.filter(r=>!t||r.tarea===t)}
+function render(){
+  document.querySelectorAll("[data-tab]").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===tab));
+  if(!datos)return;
+  const rs=filas(),per=`${fmt(datos.desde)} al ${fmt(datos.hasta)}`;
+  if(!rs.length){$("out").innerHTML=`<p class="empty">No hay registros entre el ${per}.</p>`;return}
+  $("out").innerHTML=(tab==="A"?vistaA:tab==="B"?vistaB:vistaC)(rs,per);
+}
+
+/* ---------- A: Resumen ejecutivo ---------- */
+function vistaA(rs,per){
+  const k=contar(rs);
+  const porDia=agrupar(rs,r=>r.fecha),ds=dias(datos.desde,datos.hasta);
+  const max=Math.max(1,...ds.map(d=>(porDia.get(d)||[]).length));
+  const barras=ds.map(d=>{const kk=contar(porDia.get(d)||[]);
+    const tip=`<b>${fmt(d)}</b><br>${kk.ok} a tiempo · ${kk.late} atrasadas · ${kk.no} no realizadas${kk.pend?` · ${kk.pend} pendientes`:""}<br>Cumplimiento: ${pct(kk.ej,kk.vencidas)}`;
+    return `<div class="day" data-tip="${esc(tip)}">${["ok","late","no","pend"].filter(c=>kk[c]).map(c=>`<i class="k-${c}" style="height:${kk[c]*100/max}%"></i>`).join("")}</div>`}).join("");
+  const porTarea=[...agrupar(rs,r=>r.hora+" · "+r.tarea)].sort((a,b)=>a[0].localeCompare(b[0]));
+  const filasT=porTarea.map(([n,l])=>{const kk=contar(l);return `<tr><td>${esc(n)}</td><td>${hbar(kk)}</td><td class="num">${kk.ok}</td><td class="num">${kk.late}</td><td class="num">${kk.no}</td><td class="num"><b>${pct(kk.ej,kk.vencidas)}</b></td></tr>`}).join("");
+  return `<div class="propuesta">
+  <p class="note">Propuesta A: una mirada rápida al cumplimiento del período (${per}). Pensada para la jefatura: indicadores arriba, evolución diaria y detalle por tarea.</p>
+  <div class="kpis">
+    <div class="kpi"><span class="lbl">Cumplimiento</span><span class="val">${pct(k.ej,k.vencidas)}</span><span class="sub">${k.ej} de ${k.vencidas} tareas vencidas ejecutadas</span></div>
+    <div class="kpi"><span class="lbl">A tiempo</span><span class="val">${pct(k.ok,k.vencidas)}</span><span class="sub">${k.ok} tareas a la hora o antes</span></div>
+    <div class="kpi"><span class="lbl">Atrasadas</span><span class="val">${k.late}</span><span class="sub">${pct(k.late,k.vencidas)} de las vencidas</span></div>
+    <div class="kpi"><span class="lbl">No realizadas</span><span class="val">${k.no}</span><span class="sub">${rs.filter(r=>r.estatus==="No Realizada"&&!r.responsable).length} sin responsable asignado</span></div>
+  </div>
+  <section class="card"><h2>Tareas por día <small>pasa el cursor sobre una barra para ver el detalle</small></h2><div class="body">
+    ${legend()}<div class="days" id="days">${barras}</div><div class="axis"><span>${fmtC(ds[0])}</span><span>${fmtC(ds[Math.floor(ds.length/2)])}</span><span>${fmtC(ds.at(-1))}</span></div></div></section>
+  <section class="card"><h2>Cumplimiento por tarea</h2><div class="tablewrap"><table><thead><tr><th>Hora · Tarea</th><th>Distribución</th><th class="num">A tiempo</th><th class="num">Atrasadas</th><th class="num">No realizadas</th><th class="num">Cumplimiento</th></tr></thead><tbody>${filasT}</tbody></table></div></section>
+  </div>`;
+}
+
+/* ---------- B: Mapa de calor ---------- */
+function vistaB(rs,per){
+  const slots=[...new Set(rs.map(r=>r.hora+"|"+r.tarea))].sort();
+  const idx=new Map(rs.map(r=>[r.fecha+"|"+r.hora+"|"+r.tarea,r]));
+  const ds=dias(datos.desde,datos.hasta).reverse();
+  const corto=t=>t.replace(/^Reporte de /,"");
+  const head=`<tr><th></th>${slots.map(s=>{const[h,t]=s.split("|");return `<th scope="col" title="${esc(t)}">${h}<br>${esc(corto(t))}</th>`}).join("")}</tr>`;
+  const body=ds.map(d=>{const dt=new Date(d+"T12:00"),wd=dt.toLocaleDateString("es-CL",{weekday:"short"});
+    return `<tr class="${dt.getDay()===0||dt.getDay()===6?"wk":""}"><th class="rowh" scope="row">${wd} ${fmtC(d)}</th>${slots.map(s=>{const r=idx.get(d+"|"+s);
+      if(!r)return `<td class="c-x" aria-label="No programada">–</td>`;const c=cat(r);
+      const tip=`<b>${fmt(d)} ${r.hora}</b> · ${esc(r.tarea)}<br>${LBL[c]}${r.ejecutada?` (${r.ejecutada})`:""}${r.responsable?`<br>Responsable: ${esc(r.responsable)}`:""}${r.comentario?`<br>Comentario: ${esc(r.comentario)}`:""}`;
+      return `<td class="c-${c}" data-tip="${esc(tip)}" aria-label="${LBL[c]}">${ICON[c]}</td>`}).join("")}</tr>`}).join("");
+  const pie=`<tr><th class="rowh">Cumplimiento</th>${slots.map(s=>{const kk=contar(rs.filter(r=>r.hora+"|"+r.tarea===s));return `<td>${pct(kk.ej,kk.vencidas)}</td>`}).join("")}</tr>`;
+  // Peor franja horaria
+  const porHora=[...agrupar(rs,r=>r.hora)].map(([h,l])=>[h,contar(l)]).filter(([,k])=>k.vencidas);
+  porHora.sort((a,b)=>(a[1].no+a[1].late)/a[1].vencidas<(b[1].no+b[1].late)/b[1].vencidas?1:-1);
+  const filasH=porHora.map(([h,kk])=>`<div class="row"><b class="mono">${h}</b><span class="mono">${pct(kk.ok,kk.vencidas)} a tiempo</span>${hbar(kk)}</div>`).join("");
+  return `<div class="propuesta">
+  <p class="note">Propuesta B: cada casilla es una tarea de un día (${per}). Permite ver de un vistazo en qué horarios y días se acumulan atrasos y tareas sin ejecutar. Pensada para supervisión diaria.</p>
+  <div class="split">
+  <section class="card" style="grid-column:1/-1"><h2>Calendario de tareas <small>✓ a tiempo · ! atrasada · ✗ no realizada · – no programada</small></h2>
+    <div class="body" style="padding-bottom:0">${legend()}</div>
+    <div class="heatwrap"><table class="heat"><thead>${head}</thead><tbody>${body}</tbody><tfoot>${pie}</tfoot></table></div></section>
+  <section class="card"><h2>Franjas horarias con más problemas</h2><div class="body rank">${filasH||'<p class="note">Sin tareas vencidas.</p>'}</div></section>
+  <section class="card"><h2>Por tipo de día</h2><div class="body rank">${[...agrupar(rs,r=>r.tipo_dia)].map(([t,l])=>{const kk=contar(l);return `<div class="row"><b>${esc(t)}</b><span class="mono">${pct(kk.ej,kk.vencidas)} cumplimiento</span>${hbar(kk)}</div>`}).join("")}</div></section>
+  </div></div>`;
+}
+
+/* ---------- C: Por responsable ---------- */
+function vistaC(rs,per){
+  const ej=rs.filter(r=>r.estatus==="Ejecutada"),no=rs.filter(r=>r.estatus==="No Realizada");
+  const pr=[...agrupar(rs.filter(r=>r.responsable),r=>r.responsable)].map(([n,l])=>[n,contar(l)]).sort((a,b)=>b[1].n-a[1].n);
+  const max=Math.max(1,...pr.map(([,k])=>k.n));
+  const filasR=pr.map(([n,k])=>`<tr><td>${esc(n)}</td><td><div style="width:${Math.max(8,k.n*100/max)}%">${hbar(k)}</div></td><td class="num">${k.ok}</td><td class="num">${k.late}</td><td class="num">${pct(k.ok,k.ej)}</td><td class="num">${k.no}</td></tr>`).join("");
+  const sinR=no.filter(r=>!r.responsable);
+  const ultimas=no.slice().sort((a,b)=>(b.fecha+b.hora).localeCompare(a.fecha+a.hora)).slice(0,15);
+  const quien=[...agrupar(ej.filter(r=>r.registrado_por),r=>r.registrado_por)].sort((a,b)=>b[1].length-a[1].length);
+  return `<div class="propuesta">
+  <p class="note">Propuesta C: desempeño por persona (${per}). Muestra cuántas tareas ejecutó cada responsable, qué porcentaje fue a tiempo y cuántas no ejecutadas tiene asignadas por el administrador.</p>
+  <div class="kpis">
+    <div class="kpi"><span class="lbl">Responsables activos</span><span class="val">${pr.length}</span><span class="sub">con al menos una tarea en el período</span></div>
+    <div class="kpi"><span class="lbl">Ejecutadas</span><span class="val">${ej.length}</span><span class="sub">${pct(ej.filter(r=>r.observacion==="A tiempo").length,ej.length)} a tiempo</span></div>
+    <div class="kpi"><span class="lbl">No realizadas asignadas</span><span class="val">${no.length-sinR.length}</span><span class="sub">de ${no.length} no realizadas</span></div>
+    <div class="kpi"><span class="lbl">Sin responsable</span><span class="val">${sinR.length}</span><span class="sub">${datos.usuario.rol==="admin"?'<a href="/admin#no-ejecutadas" style="color:var(--accent)">Asignar ahora</a>':"pendientes de asignar por un administrador"}</span></div>
+  </div>
+  <section class="card"><h2>Tareas por responsable</h2><div class="body" style="padding-bottom:0">${legend(["ok","late","no"])}</div>
+    <div class="tablewrap">${pr.length?`<table><thead><tr><th>Responsable</th><th>Tareas</th><th class="num">A tiempo</th><th class="num">Atrasadas</th><th class="num">% a tiempo</th><th class="num">No realizadas asignadas</th></tr></thead><tbody>${filasR}</tbody></table>`:'<p class="empty">Aún no hay tareas con responsable en este período.</p>'}</div></section>
+  <div class="split">
+  <section class="card"><h2>Últimas no realizadas</h2><div class="tablewrap">${ultimas.length?`<table style="min-width:520px"><thead><tr><th>Fecha</th><th>Tarea</th><th>Responsable</th><th>Comentario</th></tr></thead><tbody>${ultimas.map(r=>`<tr><td class="mono">${fmtC(r.fecha)} ${r.hora}</td><td>${esc(r.tarea)}</td><td>${r.responsable?esc(r.responsable):'<span class="note">Sin asignar</span>'}</td><td>${esc(r.comentario)||'<span class="note">—</span>'}</td></tr>`).join("")}</tbody></table>`:'<p class="empty">No hay tareas no realizadas.</p>'}</div></section>
+  <section class="card"><h2>Registros por usuario <small>quién presionó "Ejecutada"</small></h2><div class="body rank">${quien.map(([u,l])=>`<div class="row"><b>${esc(u)}</b><span class="mono">${l.length}</span><div class="hbar"><i style="width:${l.length*100/ej.length}%;background:var(--accent)"></i></div></div>`).join("")||'<p class="note">Sin registros.</p>'}</div></section>
+  </div></div>`;
+}
+
+/* Tooltip */
+const tip=$("tip");
+document.addEventListener("mousemove",e=>{const t=e.target.closest("[data-tip]");if(!t){tip.style.display="none";return}
+  tip.innerHTML=t.dataset.tip;tip.style.display="block";const w=tip.offsetWidth,h=tip.offsetHeight;
+  tip.style.left=Math.min(innerWidth-w-8,e.clientX+12)+"px";tip.style.top=(e.clientY-h-12<0?e.clientY+16:e.clientY-h-12)+"px"});
+document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>{tab=b.dataset.tab;try{localStorage.setItem("dash-tab",tab)}catch(e){}render()}));
+$("periodo").addEventListener("change",()=>{const c=$("periodo").value==="custom";document.querySelectorAll(".cust").forEach(l=>l.hidden=!c);if(!c)cargar()});
+$("desde").addEventListener("change",cargar);$("hasta").addEventListener("change",cargar);
+$("tarea").addEventListener("change",render);
+cargar();
+</script>
+</body>
+</html>
