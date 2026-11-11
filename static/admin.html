@@ -74,16 +74,16 @@ table.ne input[type=time]{font-family:var(--f-mono)}
   <section class="card" id="no-ejecutadas">
     <h2>Tareas no ejecutadas</h2>
     <div class="body">
-      <p class="note">Asigna el responsable (de la lista de usuarios) y deja un comentario con el motivo. Si la tarea sí se hizo, indica la hora de ejecución y pasará a Ejecutada.</p>
+      <p class="note">Las tareas no ejecutadas quedan como No Realizada. Aquí se asigna, desde la lista de usuarios, el responsable del incumplimiento y se deja un comentario con el motivo.</p>
       <form class="form" id="fNE">
         <label for="neDesde">Desde<input id="neDesde" type="date"></label>
         <label for="neHasta">Hasta<input id="neHasta" type="date"></label>
-        <label for="neFiltro">Mostrar<select id="neFiltro"><option value="">Todas</option><option value="sin">Sin responsable asignado</option><option value="con">Con responsable asignado</option></select></label>
+        <label for="neFiltro">Mostrar<select id="neFiltro"><option value="">Todas</option><option value="sin">Sin responsable del incumplimiento</option><option value="con">Con responsable del incumplimiento</option></select></label>
         <button class="btn sec" type="submit">Buscar</button>
       </form>
       <p class="ok" id="okNE"></p>
     </div>
-    <div class="tablewrap"><table class="ne"><thead><tr><th>Fecha</th><th>Hora</th><th>Tarea</th><th>Responsable</th><th>Comentario</th><th>Hora ejecución (opcional)</th><th></th></tr></thead><tbody id="tNE"></tbody></table></div>
+    <div class="tablewrap"><table class="ne"><thead><tr><th>Fecha</th><th>Hora</th><th>Tarea</th><th>Responsable del incumplimiento</th><th>Comentario</th><th></th></tr></thead><tbody id="tNE"></tbody></table></div>
   </section>
 
   <section class="card">
@@ -157,11 +157,10 @@ function renderNE(){
   const rows=ne.registros.filter(r=>!f||(f==="sin"?!r.responsable:!!r.responsable));
   const opts=v=>`<option value="">Sin asignar</option>${ne.usuarios.map(n=>`<option ${n===v?"selected":""}>${esc(n)}</option>`).join("")}${v&&!ne.usuarios.includes(v)?`<option selected>${esc(v)}</option>`:""}`;
   $("tNE").innerHTML=rows.length?rows.map(r=>`<tr data-ne="${r.id}"><td class="mono">${fmt(r.fecha)}</td><td class="mono">${r.hora}</td><td>${esc(r.tarea)}</td>
-    <td><select data-f="responsable" aria-label="Responsable">${opts(r.responsable)}</select></td>
+    <td><select data-f="responsable" aria-label="Responsable del incumplimiento">${opts(r.responsable)}</select></td>
     <td><input type="text" data-f="comentario" maxlength="500" value="${esc(r.comentario)}" placeholder="Motivo…" aria-label="Comentario"></td>
-    <td><input type="time" data-f="hora_ejecutada" aria-label="Hora de ejecución"></td>
     <td><button class="btn" data-guardane="${r.id}">Guardar</button></td></tr>`).join("")
-    :`<tr><td colspan="7" class="note">No hay tareas no ejecutadas en este rango.</td></tr>`;
+    :`<tr><td colspan="6" class="note">No hay tareas no ejecutadas en este rango.</td></tr>`;
 }
 $("fNE").addEventListener("submit",e=>{e.preventDefault();$("okNE").textContent="";cargarNE()});
 $("neFiltro").addEventListener("change",()=>ne&&renderNE());
@@ -170,7 +169,7 @@ $("tNE").addEventListener("click",async e=>{
   const tr=b.closest("tr"),body={};tr.querySelectorAll("[data-f]").forEach(el=>body[el.dataset.f]=el.value);
   b.disabled=true;
   try{const r=await api("/api/admin/no-ejecutada/"+b.dataset.guardane,body);showMsg("");
-    $("okNE").textContent=r.estatus==="Ejecutada"?`${r.tarea} (${fmt(r.fecha)} ${r.hora}) quedó como Ejecutada, ${r.observacion}.`:`Cambios guardados: ${r.tarea} (${fmt(r.fecha)} ${r.hora}).`;
+    $("okNE").textContent=`Guardado: ${r.tarea} (${fmt(r.fecha)} ${r.hora}), responsable del incumplimiento: ${r.responsable||"sin asignar"}.`;
     await cargarNE();cargar();
   }catch(err){showMsg(err.message);b.disabled=false}
 });

@@ -197,17 +197,17 @@ function vistaC(rs,per){
   const ultimas=no.slice().sort((a,b)=>(b.fecha+b.hora).localeCompare(a.fecha+a.hora)).slice(0,15);
   const quien=[...agrupar(ej.filter(r=>r.registrado_por),r=>r.registrado_por)].sort((a,b)=>b[1].length-a[1].length);
   return `<div class="propuesta">
-  <p class="note">Propuesta C: desempeño por persona (${per}). Muestra cuántas tareas ejecutó cada responsable, qué porcentaje fue a tiempo y cuántas no ejecutadas tiene asignadas por el administrador.</p>
+  <p class="note">Propuesta C: desempeño por persona (${per}). Muestra cuántas tareas ejecutó cada responsable, qué porcentaje fue a tiempo y de cuántos incumplimientos (tareas no realizadas) es responsable según el administrador.</p>
   <div class="kpis">
     <div class="kpi"><span class="lbl">Responsables activos</span><span class="val">${pr.length}</span><span class="sub">con al menos una tarea en el período</span></div>
     <div class="kpi"><span class="lbl">Ejecutadas</span><span class="val">${ej.length}</span><span class="sub">${pct(ej.filter(r=>r.observacion==="A tiempo").length,ej.length)} a tiempo</span></div>
-    <div class="kpi"><span class="lbl">No realizadas asignadas</span><span class="val">${no.length-sinR.length}</span><span class="sub">de ${no.length} no realizadas</span></div>
-    <div class="kpi"><span class="lbl">Sin responsable</span><span class="val">${sinR.length}</span><span class="sub">${datos.usuario.rol==="admin"?'<a href="/admin#no-ejecutadas" style="color:var(--accent)">Asignar ahora</a>':"pendientes de asignar por un administrador"}</span></div>
+    <div class="kpi"><span class="lbl">Incumplimientos con responsable</span><span class="val">${no.length-sinR.length}</span><span class="sub">de ${no.length} no realizadas</span></div>
+    <div class="kpi"><span class="lbl">Incumplimientos sin responsable</span><span class="val">${sinR.length}</span><span class="sub">${datos.usuario.rol==="admin"?'<a href="/admin#no-ejecutadas" style="color:var(--accent)">Asignar ahora</a>':"pendientes de asignar por un administrador"}</span></div>
   </div>
   <section class="card"><h2>Tareas por responsable</h2><div class="body" style="padding-bottom:0">${legend(["ok","late","no"])}</div>
-    <div class="tablewrap">${pr.length?`<table><thead><tr><th>Responsable</th><th>Tareas</th><th class="num">A tiempo</th><th class="num">Atrasadas</th><th class="num">% a tiempo</th><th class="num">No realizadas asignadas</th></tr></thead><tbody>${filasR}</tbody></table>`:'<p class="empty">Aún no hay tareas con responsable en este período.</p>'}</div></section>
+    <div class="tablewrap">${pr.length?`<table><thead><tr><th>Responsable</th><th>Tareas</th><th class="num">A tiempo</th><th class="num">Atrasadas</th><th class="num">% a tiempo</th><th class="num">Incumplimientos</th></tr></thead><tbody>${filasR}</tbody></table>`:'<p class="empty">Aún no hay tareas con responsable en este período.</p>'}</div></section>
   <div class="split">
-  <section class="card"><h2>Últimas no realizadas</h2><div class="tablewrap">${ultimas.length?`<table style="min-width:520px"><thead><tr><th>Fecha</th><th>Tarea</th><th>Responsable</th><th>Comentario</th></tr></thead><tbody>${ultimas.map(r=>`<tr><td class="mono">${fmtC(r.fecha)} ${r.hora}</td><td>${esc(r.tarea)}</td><td>${r.responsable?esc(r.responsable):'<span class="note">Sin asignar</span>'}</td><td>${esc(r.comentario)||'<span class="note">—</span>'}</td></tr>`).join("")}</tbody></table>`:'<p class="empty">No hay tareas no realizadas.</p>'}</div></section>
+  <section class="card"><h2>Últimas no realizadas</h2><div class="tablewrap">${ultimas.length?`<table style="min-width:520px"><thead><tr><th>Fecha</th><th>Tarea</th><th>Responsable del incumplimiento</th><th>Comentario</th></tr></thead><tbody>${ultimas.map(r=>`<tr><td class="mono">${fmtC(r.fecha)} ${r.hora}</td><td>${esc(r.tarea)}</td><td>${r.responsable?esc(r.responsable):'<span class="note">Sin asignar</span>'}</td><td>${esc(r.comentario)||'<span class="note">—</span>'}</td></tr>`).join("")}</tbody></table>`:'<p class="empty">No hay tareas no realizadas.</p>'}</div></section>
   <section class="card"><h2>Registros por usuario <small>quién presionó "Ejecutada"</small></h2><div class="body rank">${quien.map(([u,l])=>`<div class="row"><b>${esc(u)}</b><span class="mono">${l.length}</span><div class="hbar"><i style="width:${l.length*100/ej.length}%;background:var(--accent)"></i></div></div>`).join("")||'<p class="note">Sin registros.</p>'}</div></section>
   </div></div>`;
 }

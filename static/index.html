@@ -144,7 +144,7 @@ function render(){
   $("btnHoy").hidden=esHoy;
   const b=[];
   if(data.feriado)b.push(`Feriado: ${esc(data.feriado)}. Se usan las tareas de Domingo.`);
-  if(!esHoy)b.push(admin?"Estás viendo un día anterior. Puedes corregir tareas ejecutadas o marcar con hora una tarea no realizada.":"Estás viendo un día anterior (solo lectura).");
+  if(!esHoy)b.push(admin?"Estás viendo un día anterior. Puedes corregir tareas ejecutadas y asignar el responsable del incumplimiento de las no realizadas.":"Estás viendo un día anterior (solo lectura).");
   $("banner").innerHTML=b.join(" ");$("banner").hidden=!b.length;
   $("contacto").textContent=data.contacto||"Aún no se ha definido un contacto.";
   const k={ok:0,pend:0,no:0};data.tareas.forEach(t=>k[cls(t.estatus)]++);
@@ -167,12 +167,10 @@ function render(){
     }else if(esHoy){
       const v=sel[t.id]??"";
       acciones=`<select class="resp" id="resp-${t.id}" data-id="${t.id}" aria-label="Responsable">${opts(v)}</select><button class="btn" data-exec="${t.id}">Ejecutada</button>`;
-    }else if(admin){
-      acciones=`<button class="btn sec" data-editar="${t.id}">Marcar con hora</button>`;
     }
     const who=[t.registrado_por&&`Marcó: ${esc(t.registrado_por)}`,t.modificado_por&&`Corrigió: ${esc(t.modificado_por)}`].filter(Boolean).join(" · ");
-    const extra=[t.estatus==="No Realizada"&&t.responsable&&`Responsable asignado: ${esc(t.responsable)}`,t.comentario&&`Comentario: ${esc(t.comentario)}`].filter(Boolean).join(" · ");
-    if(admin&&t.estatus==="No Realizada")acciones+=`<a class="linkbtn" href="/admin#no-ejecutadas">Asignar responsable</a>`;
+    const extra=[t.estatus==="No Realizada"&&t.responsable&&`Responsable del incumplimiento: ${esc(t.responsable)}`,t.comentario&&`Comentario: ${esc(t.comentario)}`].filter(Boolean).join(" · ");
+    if(admin&&t.estatus==="No Realizada")acciones+=`<a class="linkbtn" href="/admin#no-ejecutadas">Asignar responsable del incumplimiento</a>`;
     out+=`<div class="tl-item"><div class="tl-time">${t.hora}</div><div class="tl-rail"><span class="tl-dot c-${c}-col"></span></div>
       <div class="tl-card c-${c}"><div style="min-width:0"><div class="t">${esc(t.tarea)}</div><div class="meta"><span class="pill s-${c}"><i></i>${t.estatus}</span> <span class="obs ${ocls}">${esc(t.observacion||"—")}</span></div>${who?`<div class="who">${who}</div>`:""}${extra?`<div class="who">${extra}</div>`:""}</div><div class="meta">${acciones}</div></div></div>`;
   });

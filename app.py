@@ -449,6 +449,8 @@ def api_editar(reg_id):
         r = cx.execute("SELECT * FROM base_semaforo WHERE id=%s FOR UPDATE", (reg_id,)).fetchone()
         if not r:
             return jsonify(error="La tarea no existe."), 404
+        if r["estatus"] != "Ejecutada":
+            return jsonify(error="Solo se pueden corregir tareas ejecutadas. Las no ejecutadas quedan como No Realizada."), 409
         try:
             hh, mm = (int(x) for x in hora_ej.split(":"))
             ej = datetime.combine(r["fecha"], datetime.min.time(), TZ).replace(hour=hh, minute=mm)
@@ -557,14 +559,13 @@ def api_admin_no_ejecutadas():
 @app.post("/api/admin/no-ejecutada/<int:reg_id>")
 @requiere_admin
 def api_admin_no_ejecutada(reg_id):
-    """Edita una tarea no ejecutada: asigna un responsable (de la lista de usuarios) y un comentario.
+    """Asigna el responsable del incumplimiento (de la lista de usuarios) y un comentario.
 
-    Si además se indica "hora_ejecutada" (HH:MM), la tarea pasa a Ejecutada con esa hora.
+    La tarea sigue como No Realizada / Sin ejecutar.
     """
     d = request.get_json(silent=True) or {}
     responsable = (d.get("responsable") or "").strip()
     comentario = (d.get("comentario") or "").strip()[:500]
-    hora_ej = (d.get("hora_ejecutada") or "").strip()
     yo = usuario_actual()["usuario"]
     with conectar() as cx:
         if responsable and responsable not in _nombres_usuarios(cx):
@@ -574,29 +575,11 @@ def api_admin_no_ejecutada(reg_id):
             return jsonify(error="La tarea no existe."), 404
         if r["estatus"] != "No Realizada":
             return jsonify(error="Esta tarea ya no figura como no ejecutada. Actualiza la página."), 409
-        if hora_ej:
-            if not responsable:
-                return jsonify(error="Para marcarla como ejecutada, elige el responsable."), 400
-            try:
-                hh, mm = (int(x) for x in hora_ej.split(":"))
-                ej = datetime.combine(r["fecha"], datetime.min.time(), TZ).replace(hour=hh, minute=mm)
-            except (ValueError, TypeError):
-                return jsonify(error="Indica la hora de ejecución en formato HH:MM."), 400
-            if ej > ahora():
-                return jsonify(error="La hora de ejecución no puede ser futura."), 400
-            nuevo = cx.execute(
-                """UPDATE base_semaforo SET estatus='Ejecutada', responsable=%s, ejecutada=%s, observacion=%s,
-                       comentario=%s, registrado_por=COALESCE(registrado_por, %s), modificado_por=%s,
-                       actualizado=now()
-                   WHERE id=%s RETURNING *""",
-                (responsable, ej, observacion(r["fecha"], r["hora"], ej), comentario, yo, yo, reg_id),
-            ).fetchone()
-        else:
-            nuevo = cx.execute(
-                """UPDATE base_semaforo SET responsable=%s, comentario=%s, modificado_por=%s, actualizado=now()
-                   WHERE id=%s RETURNING *""",
-                (responsable or None, comentario, yo, reg_id),
-            ).fetchone()
+        nuevo = cx.execute(
+            """UPDATE base_semaforo SET responsable=%s, comentario=%s, modificado_por=%s, actualizado=now()
+               WHERE id=%s RETURNING *""",
+            (responsable or None, comentario, yo, reg_id),
+        ).fetchone()
         cx.execute(
             "INSERT INTO historial_cambios (registro_id, usuario, accion, antes, despues) VALUES (%s,%s,'no-ejecutada',%s,%s)",
             (reg_id, yo, _resumen(r), _resumen(nuevo)),
