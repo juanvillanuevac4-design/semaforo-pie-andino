@@ -83,6 +83,8 @@ CREATE TABLE IF NOT EXISTS base_semaforo (
 CREATE INDEX IF NOT EXISTS base_semaforo_fecha ON base_semaforo (fecha);
 ALTER TABLE base_semaforo ADD COLUMN IF NOT EXISTS registrado_por TEXT;
 ALTER TABLE base_semaforo ADD COLUMN IF NOT EXISTS modificado_por TEXT;
+-- Comentario del administrador (p. ej. motivo de una tarea no ejecutada)
+ALTER TABLE base_semaforo ADD COLUMN IF NOT EXISTS comentario TEXT NOT NULL DEFAULT '';
 CREATE TABLE IF NOT EXISTS usuarios (
     id SERIAL PRIMARY KEY,
     usuario TEXT NOT NULL UNIQUE,
@@ -215,6 +217,7 @@ def serializar(r):
         "observacion": r["observacion"],
         "registrado_por": r.get("registrado_por"),
         "modificado_por": r.get("modificado_por"),
+        "comentario": r.get("comentario") or "",
     }
 
 
@@ -279,6 +282,13 @@ def index():
 @app.get("/login")
 def login_page():
     return send_from_directory(app.static_folder, "login.html")
+
+
+@app.get("/dashboard")
+def dashboard_page():
+    if not usuario_actual():
+        return redirect("/login")
+    return send_from_directory(app.static_folder, "dashboard.html")
 
 
 @app.get("/admin")
@@ -397,7 +407,8 @@ def api_ejecutar(reg_id):
 
 def _resumen(r):
     s = serializar(r)
-    return f'{s["estatus"]} | {s["responsable"] or "-"} | {s["ejecutada"] or "-"} | {s["observacion"] or "-"}'
+    txt = f'{s["estatus"]} | {s["responsable"] or "-"} | {s["ejecutada"] or "-"} | {s["observacion"] or "-"}'
+    return txt + (f' | {s["comentario"]}' if s["comentario"] else "")
 
 
 @app.post("/api/deshacer/<int:reg_id>")
@@ -474,14 +485,123 @@ def api_csv():
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";")
     w.writerow(["Fecha", "Hora", "Tipo dia", "Tarea", "Responsable", "Estatus", "Ejecutada", "Observacion",
-                "Registrado por", "Modificado por"])
+                "Registrado por", "Modificado por", "Comentario"])
     for r in filas:
         s = serializar(r)
         w.writerow([s["fecha"], s["hora"], s["tipo_dia"], s["tarea"], s["responsable"] or "",
                     s["estatus"], s["ejecutada"] or "", s["observacion"],
-                    s["registrado_por"] or "", s["modificado_por"] or ""])
+                    s["registrado_por"] or "", s["modificado_por"] or "", s["comentario"]])
     return Response("﻿" + buf.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition": "attachment; filename=base_semaforo.csv"})
+
+
+def _rango(max_dias):
+    """Lee ?desde=&hasta= (AAAA-MM-DD). Por defecto, los últimos 30 días hasta hoy."""
+    hoy = ahora().date()
+    try:
+        hasta = date.fromisoformat(request.args["hasta"]) if request.args.get("hasta") else hoy
+        desde = date.fromisoformat(request.args["desde"]) if request.args.get("desde") else hasta - timedelta(days=29)
+    except ValueError:
+        return None
+    hasta = min(hasta, hoy)
+    if desde > hasta:
+        desde, hasta = hasta, desde
+    desde = max(desde, hasta - timedelta(days=max_dias - 1))
+    return desde, hasta
+
+
+@app.get("/api/dashboard")
+@requiere_login
+def api_dashboard():
+    """Registros de un rango de fechas (máximo 366 días) para los tableros."""
+    rango = _rango(366)
+    if not rango:
+        return jsonify(error="Fecha no válida."), 400
+    desde, hasta = rango
+    with conectar() as cx:
+        sincronizar(cx)
+        filas = cx.execute(
+            "SELECT * FROM base_semaforo WHERE fecha BETWEEN %s AND %s ORDER BY fecha, hora, tarea",
+            (desde, hasta),
+        ).fetchall()
+    n = ahora()
+    return jsonify(desde=desde.isoformat(), hasta=hasta.isoformat(), hoy=n.date().isoformat(),
+                   hora=n.strftime("%H:%M"), registros=[serializar(r) for r in filas], usuario=usuario_actual())
+
+
+# ---------- Tareas no ejecutadas (administrador) ----------
+
+def _nombres_usuarios(cx):
+    return [r["nombre"] for r in cx.execute("SELECT DISTINCT nombre FROM usuarios WHERE activo ORDER BY nombre").fetchall()]
+
+
+@app.get("/api/admin/no-ejecutadas")
+@requiere_admin
+def api_admin_no_ejecutadas():
+    rango = _rango(366)
+    if not rango:
+        return jsonify(error="Fecha no válida."), 400
+    desde, hasta = rango
+    with conectar() as cx:
+        sincronizar(cx)
+        filas = cx.execute(
+            """SELECT * FROM base_semaforo WHERE estatus='No Realizada' AND fecha BETWEEN %s AND %s
+               ORDER BY fecha DESC, hora DESC, tarea""",
+            (desde, hasta),
+        ).fetchall()
+        usuarios = _nombres_usuarios(cx)
+    return jsonify(desde=desde.isoformat(), hasta=hasta.isoformat(), usuarios=usuarios,
+                   registros=[serializar(r) for r in filas])
+
+
+@app.post("/api/admin/no-ejecutada/<int:reg_id>")
+@requiere_admin
+def api_admin_no_ejecutada(reg_id):
+    """Edita una tarea no ejecutada: asigna un responsable (de la lista de usuarios) y un comentario.
+
+    Si además se indica "hora_ejecutada" (HH:MM), la tarea pasa a Ejecutada con esa hora.
+    """
+    d = request.get_json(silent=True) or {}
+    responsable = (d.get("responsable") or "").strip()
+    comentario = (d.get("comentario") or "").strip()[:500]
+    hora_ej = (d.get("hora_ejecutada") or "").strip()
+    yo = usuario_actual()["usuario"]
+    with conectar() as cx:
+        if responsable and responsable not in _nombres_usuarios(cx):
+            return jsonify(error="Elige un responsable de la lista de usuarios."), 400
+        r = cx.execute("SELECT * FROM base_semaforo WHERE id=%s FOR UPDATE", (reg_id,)).fetchone()
+        if not r:
+            return jsonify(error="La tarea no existe."), 404
+        if r["estatus"] != "No Realizada":
+            return jsonify(error="Esta tarea ya no figura como no ejecutada. Actualiza la página."), 409
+        if hora_ej:
+            if not responsable:
+                return jsonify(error="Para marcarla como ejecutada, elige el responsable."), 400
+            try:
+                hh, mm = (int(x) for x in hora_ej.split(":"))
+                ej = datetime.combine(r["fecha"], datetime.min.time(), TZ).replace(hour=hh, minute=mm)
+            except (ValueError, TypeError):
+                return jsonify(error="Indica la hora de ejecución en formato HH:MM."), 400
+            if ej > ahora():
+                return jsonify(error="La hora de ejecución no puede ser futura."), 400
+            nuevo = cx.execute(
+                """UPDATE base_semaforo SET estatus='Ejecutada', responsable=%s, ejecutada=%s, observacion=%s,
+                       comentario=%s, registrado_por=COALESCE(registrado_por, %s), modificado_por=%s,
+                       actualizado=now()
+                   WHERE id=%s RETURNING *""",
+                (responsable, ej, observacion(r["fecha"], r["hora"], ej), comentario, yo, yo, reg_id),
+            ).fetchone()
+        else:
+            nuevo = cx.execute(
+                """UPDATE base_semaforo SET responsable=%s, comentario=%s, modificado_por=%s, actualizado=now()
+                   WHERE id=%s RETURNING *""",
+                (responsable or None, comentario, yo, reg_id),
+            ).fetchone()
+        cx.execute(
+            "INSERT INTO historial_cambios (registro_id, usuario, accion, antes, despues) VALUES (%s,%s,'no-ejecutada',%s,%s)",
+            (reg_id, yo, _resumen(r), _resumen(nuevo)),
+        )
+    return jsonify(serializar(nuevo))
 
 
 # ---------- Administración ----------

@@ -31,7 +31,10 @@ Las tareas y responsables se cargan desde las tablas `parametro_tareas` y `respo
 ## Rutas
 
 - `/` interfaz (línea de tiempo)
-- `/login`, `/admin`
+- `/dashboard` tres propuestas de dashboard (A: resumen ejecutivo, B: mapa de calor, C: por responsable)
+- `/login`, `/admin` (incluye la sección "Tareas no ejecutadas")
+- `GET /api/dashboard?desde=&hasta=` registros del rango (máx. 366 días)
+- `GET /api/admin/no-ejecutadas?desde=&hasta=`, `POST /api/admin/no-ejecutada/<id>` con `{"responsable", "comentario", "hora_ejecutada"?}` (administrador; el responsable se elige de la lista de usuarios activos)
 - `GET /api/dia?fecha=AAAA-MM-DD` tareas del día
 - `POST /api/deshacer/<id>`, `POST /api/editar/<id>` (administrador)
 - `POST /api/ejecutar/<id>` con `{"responsable": "..."}`
