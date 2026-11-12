@@ -10,7 +10,7 @@ Tipo de día: lunes a viernes Hábil, sábado Sábado, domingo Domingo. Los feri
 
 ## Usuarios
 
-- Se ingresa con usuario y contraseña. Roles: **Operador** (marca tareas) y **Administrador** (además deshace o corrige tareas marcadas, revisa días anteriores, administra usuarios, la lista de responsables y el contacto en `/admin`).
+- Se ingresa con usuario y contraseña. Roles: **Operador** (marca, corrige y deshace tareas) y **Administrador** (además asigna el responsable del incumplimiento de las no ejecutadas y administra usuarios, la lista de responsables y el contacto en `/admin`).
 - Cada corrección queda en la tabla `historial_cambios`; `base_semaforo` guarda quién marcó (`registrado_por`) y quién corrigió (`modificado_por`).
 - El primer administrador se crea al arrancar con `ADMIN_USUARIO` / `ADMIN_CLAVE` si no existe ninguno.
 
@@ -36,7 +36,7 @@ Las tareas y responsables se cargan desde las tablas `parametro_tareas` y `respo
 - `GET /api/dashboard?desde=&hasta=` registros del rango (máx. 366 días)
 - `GET /api/admin/no-ejecutadas?desde=&hasta=`, `POST /api/admin/no-ejecutada/<id>` con `{"responsable", "comentario"}` (administrador): asigna el responsable del incumplimiento, elegido de la lista de usuarios activos; la tarea sigue como No Realizada
 - `GET /api/dia?fecha=AAAA-MM-DD` tareas del día
-- `POST /api/deshacer/<id>`, `POST /api/editar/<id>` (administrador)
+- `POST /api/deshacer/<id>`, `POST /api/editar/<id>` (cualquier usuario; queda en `historial_cambios`)
 - `POST /api/ejecutar/<id>` con `{"responsable": "..."}`
 - `GET /api/base.csv?desde=AAAA-MM-DD&hasta=AAAA-MM-DD` descarga de la Base semáforo
 
