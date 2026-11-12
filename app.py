@@ -41,6 +41,9 @@ PARAMETRO_TAREAS = [
     ("Hábil", "18:00", "Reporte de Asistencia"),
     ("Sábado", "18:00", "Reporte de Asistencia"),
     ("Domingo", "18:00", "Reporte de Asistencia"),
+    ("Hábil", "03:00", "Control de Flota"),
+    ("Sábado", "03:00", "Control de Flota"),
+    ("Domingo", "03:00", "Control de Flota"),
 ]
 # Hoja "Lista Responsable"
 RESPONSABLES = [
@@ -59,6 +62,8 @@ CREATE TABLE IF NOT EXISTS parametro_tareas (
     activa BOOLEAN NOT NULL DEFAULT TRUE,
     UNIQUE (tipo_dia, hora, tarea)
 );
+-- Desde qué día se genera la tarea (las tareas nuevas no crean incumplimientos en días anteriores)
+ALTER TABLE parametro_tareas ADD COLUMN IF NOT EXISTS vigente_desde DATE NOT NULL DEFAULT '2000-01-01';
 CREATE TABLE IF NOT EXISTS responsables (
     id SERIAL PRIMARY KEY,
     nombre TEXT NOT NULL UNIQUE,
@@ -148,9 +153,14 @@ def tipo_dia(d: date) -> str:
 def iniciar_bd():
     with conectar() as cx:
         cx.execute(SCHEMA)
+        # En una base ya en uso, una tarea nueva rige desde mañana para no marcar
+        # como No Realizada una hora que ya pasó el día del despliegue.
+        hay_tareas = cx.execute("SELECT 1 FROM parametro_tareas LIMIT 1").fetchone()
+        vigente = ahora().date() + timedelta(days=1) if hay_tareas else date(2000, 1, 1)
         cx.cursor().executemany(
-            "INSERT INTO parametro_tareas (tipo_dia, hora, tarea) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING",
-            PARAMETRO_TAREAS,
+            """INSERT INTO parametro_tareas (tipo_dia, hora, tarea, vigente_desde) VALUES (%s,%s,%s,%s)
+               ON CONFLICT DO NOTHING""",
+            [(t, h, n, vigente) for t, h, n in PARAMETRO_TAREAS],
         )
         cx.cursor().executemany(
             "INSERT INTO responsables (nombre) VALUES (%s) ON CONFLICT DO NOTHING",
@@ -184,9 +194,9 @@ def sincronizar(cx):
         cx.execute(
             """INSERT INTO base_semaforo (fecha, hora, tipo_dia, tarea)
                SELECT %s, hora, tipo_dia, tarea FROM parametro_tareas
-               WHERE activa AND tipo_dia = %s
+               WHERE activa AND tipo_dia = %s AND vigente_desde <= %s
                ON CONFLICT (fecha, hora, tarea) DO NOTHING""",
-            (d, tipo_dia(d)),
+            (d, tipo_dia(d), d),
         )
         d += timedelta(days=1)
     limite = (n - timedelta(minutes=TOLERANCIA_MIN)).replace(tzinfo=None)
@@ -412,9 +422,9 @@ def _resumen(r):
 
 
 @app.post("/api/deshacer/<int:reg_id>")
-@requiere_admin
+@requiere_login
 def api_deshacer(reg_id):
-    """Vuelve una tarea ejecutada a Pendiente (o No Realizada si ya pasó su hora)."""
+    """Vuelve una tarea ejecutada a Pendiente (o No Realizada si ya pasó su hora). Cualquier usuario."""
     with conectar() as cx:
         r = cx.execute("SELECT * FROM base_semaforo WHERE id=%s FOR UPDATE", (reg_id,)).fetchone()
         if not r:
@@ -437,9 +447,9 @@ def api_deshacer(reg_id):
 
 
 @app.post("/api/editar/<int:reg_id>")
-@requiere_admin
+@requiere_login
 def api_editar(reg_id):
-    """Corrige el responsable y/o la hora de ejecución; la observación se recalcula."""
+    """Corrige el responsable y/o la hora de ejecución (cualquier usuario); la observación se recalcula."""
     d = request.get_json(silent=True) or {}
     responsable = (d.get("responsable") or "").strip()
     hora_ej = (d.get("hora_ejecutada") or "").strip()
