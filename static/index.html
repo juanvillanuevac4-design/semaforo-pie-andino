@@ -84,7 +84,7 @@ dialog .row{display:flex;gap:8px;justify-content:flex-end}
       <ul>
         <li>Sin tolerancia: una tarea marcada después de su hora programada queda como Atrasada, aunque sea por un minuto.</li>
         <li>La observación (A tiempo, Atrasada, Sin ejecutar) es automática. Solo un administrador puede dejar un comentario, en las tareas no ejecutadas.</li>
-        <li>Cualquier usuario puede editar o deshacer una tarea ya marcada. Cada cambio queda registrado con el nombre de quien lo hizo.</li>
+        <li>Solo un administrador puede deshacer o editar una tarea ya marcada. Cada cambio queda registrado.</li>
         <li>Los feriados de Chile usan las tareas de Domingo, según el calendario oficial.</li>
         <li>En el plan gratuito, la primera visita después de 15 minutos sin uso tarda cerca de un minuto en cargar.</li>
       </ul>
@@ -144,7 +144,7 @@ function render(){
   $("btnHoy").hidden=esHoy;
   const b=[];
   if(data.feriado)b.push(`Feriado: ${esc(data.feriado)}. Se usan las tareas de Domingo.`);
-  if(!esHoy)b.push(admin?"Estás viendo un día anterior. Puedes corregir tareas ejecutadas y asignar el responsable del incumplimiento de las no realizadas.":"Estás viendo un día anterior. Puedes corregir o deshacer tareas ejecutadas.");
+  if(!esHoy)b.push(admin?"Estás viendo un día anterior. Puedes corregir tareas ejecutadas y asignar el responsable del incumplimiento de las no realizadas.":"Estás viendo un día anterior (solo lectura).");
   $("banner").innerHTML=b.join(" ");$("banner").hidden=!b.length;
   $("contacto").textContent=data.contacto||"Aún no se ha definido un contacto.";
   const k={ok:0,pend:0,no:0};data.tareas.forEach(t=>k[cls(t.estatus)]++);
@@ -163,7 +163,7 @@ function render(){
         <button class="btn" data-guardar="${t.id}">Guardar</button><button class="btn sec" data-cancelar="1">Cancelar</button>`;
     }else if(t.estatus==="Ejecutada"){
       acciones=`<span class="note">${esc(t.responsable)}</span><button class="btn" disabled>Ejecutada ${t.ejecutada}</button>`+
-        `<button class="btn sec" data-editar="${t.id}">Editar</button><button class="btn warn" data-deshacer="${t.id}">Deshacer</button>`;
+        (admin?`<button class="btn sec" data-editar="${t.id}">Editar</button><button class="btn warn" data-deshacer="${t.id}">Deshacer</button>`:"");
     }else if(esHoy){
       const v=sel[t.id]??"";
       acciones=`<select class="resp" id="resp-${t.id}" data-id="${t.id}" aria-label="Responsable">${opts(v)}</select><button class="btn" data-exec="${t.id}">Ejecutada</button>`;

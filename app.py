@@ -422,9 +422,9 @@ def _resumen(r):
 
 
 @app.post("/api/deshacer/<int:reg_id>")
-@requiere_login
+@requiere_admin
 def api_deshacer(reg_id):
-    """Vuelve una tarea ejecutada a Pendiente (o No Realizada si ya pasó su hora). Cualquier usuario."""
+    """Vuelve una tarea ejecutada a Pendiente (o No Realizada si ya pasó su hora)."""
     with conectar() as cx:
         r = cx.execute("SELECT * FROM base_semaforo WHERE id=%s FOR UPDATE", (reg_id,)).fetchone()
         if not r:
@@ -447,9 +447,9 @@ def api_deshacer(reg_id):
 
 
 @app.post("/api/editar/<int:reg_id>")
-@requiere_login
+@requiere_admin
 def api_editar(reg_id):
-    """Corrige el responsable y/o la hora de ejecución (cualquier usuario); la observación se recalcula."""
+    """Corrige el responsable y/o la hora de ejecución; la observación se recalcula."""
     d = request.get_json(silent=True) or {}
     responsable = (d.get("responsable") or "").strip()
     hora_ej = (d.get("hora_ejecutada") or "").strip()
