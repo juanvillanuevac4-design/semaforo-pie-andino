@@ -45,7 +45,7 @@ table.ne input[type=time]{font-family:var(--f-mono)}
         <label for="nNombre">Nombre<input id="nNombre" required></label>
         <label for="nUsuario">Usuario<input id="nUsuario" required autocomplete="off"></label>
         <label for="nClave">Contraseña inicial<input id="nClave" type="text" minlength="8" required autocomplete="off"></label>
-        <label for="nRol">Rol<select id="nRol"><option value="operador">Operador</option><option value="admin">Administrador</option></select></label>
+        <label for="nRol">Rol<select id="nRol"><option value="operador">Operador</option><option value="admin">Administrador</option><option value="invitado">Invitado (solo lectura)</option></select></label>
         <button class="btn" type="submit">Crear usuario</button>
       </form>
       <p class="ok" id="okUsuario"></p>
@@ -106,7 +106,7 @@ async function cargar(){
   try{
     const d=await api("/api/admin/datos");showMsg("");
     $("tUsuarios").innerHTML=d.usuarios.map(u=>`<tr class="${u.activo?"":"off"}"><td>${esc(u.nombre)}${u.id===d.yo.id?" (tú)":""}</td><td class="mono">${esc(u.usuario)}</td>
-      <td><select data-rol="${u.id}" aria-label="Rol"><option value="operador" ${u.rol==="operador"?"selected":""}>Operador</option><option value="admin" ${u.rol==="admin"?"selected":""}>Administrador</option></select></td>
+      <td><select data-rol="${u.id}" aria-label="Rol"><option value="operador" ${u.rol==="operador"?"selected":""}>Operador</option><option value="admin" ${u.rol==="admin"?"selected":""}>Administrador</option><option value="invitado" ${u.rol==="invitado"?"selected":""}>Invitado</option></select></td>
       <td><button class="btn sec" data-activo="${u.id}" data-v="${u.activo?0:1}">${u.activo?"Desactivar":"Activar"}</button></td>
       <td><button class="btn sec" data-clave="${u.id}">Nueva contraseña</button></td></tr>`).join("");
     $("tResp").innerHTML=d.responsables.map(r=>`<tr class="${r.activo?"":"off"}"><td>${esc(r.nombre)}</td><td>${r.activo?"En la lista":"Oculto"}</td><td><button class="btn sec" data-resp="${r.id}" data-v="${r.activo?0:1}">${r.activo?"Quitar de la lista":"Volver a mostrar"}</button></td></tr>`).join("");
