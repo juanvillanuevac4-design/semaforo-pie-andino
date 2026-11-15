@@ -21,6 +21,8 @@ DIAS_RELLENO = 31  # días hacia atrás que se completan si la app estuvo deteni
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://localhost/semaforo")
 ADMIN_USUARIO = os.environ.get("ADMIN_USUARIO", "admin")
 ADMIN_CLAVE = os.environ.get("ADMIN_CLAVE", "")
+# Si se define, se crea/actualiza la cuenta de demostración "invitado" (solo lectura)
+INVITADO_CLAVE = os.environ.get("INVITADO_CLAVE", "")
 
 # Hoja "Parametro Tareas" del Excel semaforo.xlsx
 PARAMETRO_TAREAS = [
@@ -99,6 +101,9 @@ CREATE TABLE IF NOT EXISTS usuarios (
     activo BOOLEAN NOT NULL DEFAULT TRUE,
     creado TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Rol 'invitado': cuenta de demostración de solo lectura
+ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check;
+ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check CHECK (rol IN ('admin','operador','invitado'));
 CREATE TABLE IF NOT EXISTS configuracion (
     clave TEXT PRIMARY KEY,
     valor TEXT NOT NULL DEFAULT ''
@@ -175,6 +180,12 @@ def iniciar_bd():
                 (ADMIN_USUARIO, generate_password_hash(ADMIN_CLAVE)),
             )
             app.logger.info("Administrador inicial '%s' creado", ADMIN_USUARIO)
+        if INVITADO_CLAVE:
+            cx.execute(
+                """INSERT INTO usuarios (usuario, nombre, clave_hash, rol) VALUES ('invitado', 'Invitado', %s, 'invitado')
+                   ON CONFLICT (usuario) DO UPDATE SET clave_hash = EXCLUDED.clave_hash, rol='invitado', activo=TRUE""",
+                (generate_password_hash(INVITADO_CLAVE),),
+            )
 
 
 def sincronizar(cx):
@@ -273,6 +284,14 @@ def verificar_sesion_vigente():
         return
     session["u"] = {"id": r["id"], "usuario": r["usuario"], "nombre": r["nombre"], "rol": r["rol"]}
     session["verificado"] = time.time()
+
+
+@app.before_request
+def invitado_solo_lectura():
+    """La cuenta de demostración puede ver todo, pero no modificar nada."""
+    u = usuario_actual()
+    if u and u["rol"] == "invitado" and request.method != "GET" and request.path not in ("/api/login", "/api/logout"):
+        return jsonify(error="Cuenta de demostración: solo lectura."), 403
 
 
 @app.before_request
@@ -627,7 +646,7 @@ def api_admin_crear_usuario():
     d = request.get_json(silent=True) or {}
     usuario = (d.get("usuario") or "").strip().lower()
     nombre = (d.get("nombre") or "").strip()
-    rol = d.get("rol") if d.get("rol") in ("admin", "operador") else "operador"
+    rol = d.get("rol") if d.get("rol") in ("admin", "operador", "invitado") else "operador"
     clave = d.get("clave") or ""
     if not usuario or not nombre:
         return jsonify(error="Completa el usuario y el nombre."), 400
@@ -651,7 +670,7 @@ def api_admin_editar_usuario(uid):
             return jsonify(error="El usuario no existe."), 404
         rol = d.get("rol", u["rol"])
         activo = bool(d.get("activo", u["activo"]))
-        if rol not in ("admin", "operador"):
+        if rol not in ("admin", "operador", "invitado"):
             return jsonify(error="Rol no válido."), 400
         if u["rol"] == "admin" and (rol != "admin" or not activo):
             otros = cx.execute("SELECT count(*) AS n FROM usuarios WHERE rol='admin' AND activo AND id<>%s", (uid,)).fetchone()

@@ -19,5 +19,7 @@ services:
         value: admin
       - key: ADMIN_CLAVE
         sync: false
+      - key: INVITADO_CLAVE
+        sync: false
       - key: PYTHON_VERSION
         value: 3.12.7
