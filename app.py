@@ -1,8 +1,10 @@
 """Semáforo Pie Andino: seguimiento diario de tareas por hora y tipo de día."""
 import csv
 import io
+import json
 import logging
 import os
+import re
 import secrets
 import time
 from datetime import date, datetime, timedelta
@@ -292,6 +294,59 @@ def invitado_solo_lectura():
     u = usuario_actual()
     if u and u["rol"] == "invitado" and request.method != "GET" and request.path not in ("/api/login", "/api/logout"):
         return jsonify(error="Cuenta de demostración: solo lectura."), 403
+
+
+NOMBRES_FICTICIOS = [
+    "Camila Rojas", "Matías Soto", "Valentina Muñoz", "Benjamín Díaz", "Francisca Pérez",
+    "Tomás González", "Javiera Silva", "Vicente Torres", "Constanza Araya", "Diego Flores",
+    "Catalina Vargas", "Joaquín Reyes", "Antonia Castro", "Martín Fuentes", "Isidora Morales",
+    "Lucas Herrera", "Fernanda Navarro", "Sebastián Pino", "Daniela Cortés", "Ignacio Vera",
+    "Paula Riquelme", "Felipe Sandoval", "Josefa Tapia", "Cristóbal Lagos", "Florencia Bravo",
+]
+
+
+def _mapa_ficticio():
+    """Nombre real -> nombre ficticio, para mostrar a la cuenta de demostración."""
+    with conectar() as cx:
+        reales = {r["n"] for r in cx.execute(
+            "SELECT nombre AS n FROM responsables UNION SELECT nombre FROM usuarios WHERE rol <> 'invitado' "
+            "UNION SELECT usuario FROM usuarios WHERE rol <> 'invitado'").fetchall()}
+    reales.discard("admin")
+    reales.discard("Administrador")
+    mapa = {}
+    for i, n in enumerate(sorted(x for x in reales if x and x.strip())):
+        base = NOMBRES_FICTICIOS[i % len(NOMBRES_FICTICIOS)]
+        mapa[n] = base if i < len(NOMBRES_FICTICIOS) else f"{base} {i // len(NOMBRES_FICTICIOS) + 1}"
+    return mapa
+
+
+def _enmascarar(texto, patron, mapa):
+    return patron.sub(lambda m: mapa[m.group(0)], texto) if patron else texto
+
+
+@app.after_request
+def invitado_nombres_ficticios(resp):
+    """La cuenta invitado ve nombres ficticios; los datos reales de la base no se tocan."""
+    u = usuario_actual()
+    if not u or u["rol"] != "invitado" or not request.path.startswith("/api/") or resp.direct_passthrough:
+        return resp
+    mapa = _mapa_ficticio()
+    patron = re.compile(r"(?<!\w)(" + "|".join(re.escape(n) for n in sorted(mapa, key=len, reverse=True)) + r")(?!\w)") if mapa else None
+    if resp.is_json:
+        def recorrer(v, clave=None):
+            if clave == "contacto" and isinstance(v, str):
+                return "Mesa de ayuda (demo)" if v else v
+            if isinstance(v, str):
+                return _enmascarar(v, patron, mapa)
+            if isinstance(v, list):
+                return [recorrer(x) for x in v]
+            if isinstance(v, dict):
+                return {k: recorrer(x, k) for k, x in v.items()}
+            return v
+        resp.set_data(json.dumps(recorrer(resp.get_json()), ensure_ascii=False, default=str))
+    elif resp.mimetype and resp.mimetype.startswith("text/"):
+        resp.set_data(_enmascarar(resp.get_data(as_text=True), patron, mapa))
+    return resp
 
 
 @app.before_request
