@@ -1,4 +1,4 @@
-"""Semáforo Pie Andino: seguimiento diario de tareas por hora y tipo de día."""
+"""Semáforo de Tareas Operativas: seguimiento diario de tareas por hora y tipo de día."""
 import csv
 import io
 import json
