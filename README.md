@@ -1,4 +1,4 @@
-# Semáforo Pie Andino
+# Semáforo de Tareas Operativas
 
 Semáforo diario de tareas por hora y tipo de día (Hábil, Sábado, Domingo), basado en `semaforo.xlsx`.
 
